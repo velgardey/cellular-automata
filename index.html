@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cave Generator</title>
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+    <div class="container">
+        <div class="preview-container">
+            <div class="canvas-container">
+                <canvas id="caCanvas"></canvas>
+            </div>
+            <div class="game-preview">
+                <h3>Game Level Preview</h3>
+                <canvas id="gameCanvas"></canvas>
+            </div>
+        </div>
+        <div class="controls">
+            <div class="control-row">
+                <div class="control-group">
+                    <label for="gridSize">Size:</label>
+                    <input type="range" id="gridSize" min="20" max="100" value="40">
+                    <span id="gridSizeValue">40</span>
+                </div>
+                <div class="control-group">
+                    <label for="wallDensity">Density:</label>
+                    <input type="range" id="wallDensity" min="20" max="80" value="45">
+                    <span id="wallDensityValue">45%</span>
+                </div>
+            </div>
+            <div class="control-row">
+                <div class="control-group">
+                    <label for="iterations">Steps:</label>
+                    <input type="range" id="iterations" min="1" max="10" value="5">
+                    <span id="iterationsValue">5</span>
+                </div>
+                <div class="control-group">
+                    <label for="neighborThreshold">Threshold:</label>
+                    <input type="range" id="neighborThreshold" min="3" max="8" value="5">
+                    <span id="neighborThresholdValue">5</span>
+                </div>
+            </div>
+        </div>
+        <div class="legend">
+            <div class="legend-section">
+                <h3>Parameters</h3>
+                <div class="legend-item">
+                    <span class="dot"></span>
+                    <div class="legend-content">
+                        <strong>Size:</strong>
+                        <p>Controls the resolution of the cave system. Larger sizes create more detailed caves but may be slower to generate.</p>
+                    </div>
+                </div>
+                <div class="legend-item">
+                    <span class="dot"></span>
+                    <div class="legend-content">
+                        <strong>Density:</strong>
+                        <p>Initial percentage of walls. Higher values create denser, more maze-like caves, while lower values create more open spaces.</p>
+                    </div>
+                </div>
+                <div class="legend-item">
+                    <span class="dot"></span>
+                    <div class="legend-content">
+                        <strong>Steps:</strong>
+                        <p>Number of smoothing passes. More steps create more defined cave structures and remove noise.</p>
+                    </div>
+                </div>
+                <div class="legend-item">
+                    <span class="dot"></span>
+                    <div class="legend-content">
+                        <strong>Threshold:</strong>
+                        <p>Minimum neighbors for wall formation. Higher values create more isolated caves, lower values create more connected spaces.</p>
+                    </div>
+                </div>
+            </div> 
+        </div>
+        <div class="attribution">
+            Made with ❤️ by velgardey
+        </div>
+    </div>
+    <script src="main.js"></script>
+</body>
+</html>
