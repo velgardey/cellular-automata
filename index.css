@@ -19,12 +19,14 @@ html, body {
     width: 100%;
     height: 100%;
     overflow: hidden;
-    position: fixed; /* Prevent any scrolling of the page */
+    /* Remove fixed positioning to allow scrolling */
+    position: relative;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    touch-action: none; /* Disable browser touch actions */
+    /* Allow vertical touch scrolling */
+    touch-action: pan-y;
 }
 
 * {
@@ -32,7 +34,8 @@ html, body {
     padding: 0;
     box-sizing: border-box;
     -webkit-tap-highlight-color: transparent; /* Remove tap highlight on mobile */
-    touch-action: none; /* Disable browser touch actions globally */
+    /* Don't disable touch actions globally */
+    touch-action: auto;
 }
 
 body {
@@ -54,15 +57,15 @@ body {
     border-radius: var(--border-radius);
     box-shadow: var(--shadow);
     padding: var(--spacing-md);
-    overflow-y: auto; /* Allow scrolling within container instead of page */
+    overflow-y: auto; /* Allow scrolling within container */
     overflow-x: hidden;
     width: 100%;
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
+    height: 100%;
     -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
     position: relative;
-    touch-action: pan-y; /* Only allow vertical scrolling within container */
+    touch-action: pan-y; /* Allow vertical scrolling */
 }
 
 .preview-container {
@@ -70,17 +73,24 @@ body {
     gap: var(--spacing-md);
     margin-bottom: var(--spacing-md);
     flex-wrap: wrap;
+    justify-content: center; /* Center the canvas containers */
 }
 
 .canvas-container, .game-preview {
     flex: 1;
     min-width: 250px;
+    max-width: 350px; /* Limit width for better layout */
     background-color: var(--bg-secondary);
     border-radius: var(--border-radius);
     padding: var(--spacing-md);
     box-shadow: var(--shadow);
     border: 1px solid var(--border-color);
     transition: border-color 0.3s ease;
+    /* Make container square for 1:1 aspect ratio */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
 
 .canvas-container {
@@ -97,6 +107,7 @@ body {
     color: var(--text-secondary);
     font-size: 0.85em;
     border-radius: 4px;
+    z-index: 1;
 }
 
 .game-preview h3 {
@@ -107,14 +118,19 @@ body {
     letter-spacing: 1px;
     padding-bottom: 4px;
     border-bottom: 1px solid var(--border-color);
+    width: 100%;
+    text-align: center;
 }
 
 canvas {
     width: 100%;
-    height: 250px;
+    aspect-ratio: 1/1; /* Force 1:1 aspect ratio */
     background-color: var(--bg-primary);
     border-radius: 4px;
     border: 1px solid var(--border-color);
+    display: block;
+    max-height: 100%;
+    object-fit: contain;
 }
 
 .controls {
@@ -165,10 +181,12 @@ input[type="range"] {
     border-radius: 4px;
     height: 4px;
     appearance: none;
+    -webkit-appearance: none;
     cursor: pointer;
     position: relative;
     transition: height 0.2s ease;
     touch-action: none; /* Prevent browser handling of touch events */
+    z-index: 10; /* Ensure slider is above other elements */
 }
 
 /* Active state for sliders */
@@ -183,6 +201,17 @@ input[type="range"]:focus {
     box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
 }
 
+/* Create a larger hit area for the slider thumb */
+input[type="range"]::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: 0;
+    right: 0;
+    bottom: -10px;
+    z-index: -1;
+}
+
 input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
     width: 16px;
@@ -194,6 +223,7 @@ input[type="range"]::-webkit-slider-thumb {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     transition: transform 0.1s ease, width 0.1s ease, height 0.1s ease;
     margin-top: -6px; /* Center the thumb on the track */
+    z-index: 20; /* Ensure thumb is above the track */
 }
 
 input[type="range"].active::-webkit-slider-thumb {
@@ -234,11 +264,27 @@ input[type="range"]::-moz-range-thumb {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     cursor: pointer;
     transition: transform 0.1s ease;
+    z-index: 20;
 }
 
 input[type="range"].active::-moz-range-thumb {
     transform: scale(1.2);
     box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+}
+
+/* Specific styles for the threshold slider to ensure it works well */
+#neighborThreshold {
+    z-index: 15; /* Higher z-index for this specific slider */
+}
+
+#neighborThreshold::-webkit-slider-thumb {
+    width: 18px; /* Slightly larger thumb for better touch target */
+    height: 18px;
+}
+
+#neighborThreshold::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
 }
 
 input[type="text"], select {
@@ -393,18 +439,16 @@ input[type="text"]:focus, select:focus {
         height: 20px;
     }
 
-    .canvas-container, .game-preview {
-        padding: var(--spacing-sm);
-        min-width: 200px;
-    }
-
     canvas {
-        height: 200px;
+        aspect-ratio: 1/1; /* Maintain 1:1 aspect ratio on mobile */
+        height: auto; /* Let height be determined by aspect ratio */
+        max-height: 250px;
     }
 
-    /* Larger touch area for value displays */
-    .control-group span {
-        padding: 4px 0;
+    .canvas-container, .game-preview {
+        min-width: 100%; /* Full width on mobile */
+        max-width: 100%;
+        margin-bottom: var(--spacing-md);
     }
 }
 
@@ -412,6 +456,7 @@ input[type="text"]:focus, select:focus {
 @media (hover: none) {
     input[type="range"] {
         height: 8px; /* Even larger track for touch-only devices */
+        margin: var(--spacing-md) 0; /* More vertical space for touch */
     }
     
     input[type="range"]::-webkit-slider-thumb {
@@ -426,10 +471,27 @@ input[type="text"]:focus, select:focus {
         border-width: 3px;
     }
     
+    /* Specific styles for the threshold slider on touch devices */
+    #neighborThreshold::-webkit-slider-thumb {
+        width: 26px; /* Even larger for touch */
+        height: 26px;
+    }
+    
+    #neighborThreshold::-moz-range-thumb {
+        width: 26px;
+        height: 26px;
+    }
+    
     /* Prevent text selection during slider interaction */
     .controls {
         user-select: none;
         -webkit-user-select: none;
+    }
+    
+    /* Increase touch target size for control groups */
+    .control-group {
+        padding: 8px 0;
+        margin-bottom: 4px;
     }
     
     .legend-toggle {
@@ -439,11 +501,6 @@ input[type="text"]:focus, select:focus {
     select, input[type="text"] {
         font-size: 16px;
         padding: 12px;
-    }
-    
-    /* Improve touch targets */
-    .control-group {
-        padding: 4px 0;
     }
     
     label {
@@ -459,10 +516,10 @@ input[type="text"]:focus, select:focus {
 .hashnode-embed {
     background: var(--bg-primary);
     border-radius: var(--border-radius);
-    overflow: hidden;
+    overflow: auto; /* Allow scrolling */
     max-width: 100%;
     height: 100%;
-    position: absolute;
+    position: relative; /* Change from absolute to relative */
     top: 0;
     left: 0;
     right: 0;

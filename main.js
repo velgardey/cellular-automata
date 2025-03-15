@@ -83,64 +83,52 @@ class CaveVisualizer {
         // Get the actual container width after CSS is applied
         const containerWidth = this.canvas.parentElement.clientWidth;
         
-        // Set fixed height for canvas based on CSS
-        const canvasHeight = window.matchMedia('(max-width: 768px)').matches ? 200 : 250;
+        // Calculate size for 1:1 aspect ratio
+        const size = Math.min(containerWidth, 350); // Limit max size
         
         // Set canvas size with device pixel ratio for sharp rendering
         const dpr = window.devicePixelRatio || 1;
-        this.canvas.width = containerWidth * dpr;
-        this.canvas.height = canvasHeight * dpr;
-        this.gameCanvas.width = containerWidth * dpr;
-        this.gameCanvas.height = canvasHeight * dpr;
+        this.canvas.width = size * dpr;
+        this.canvas.height = size * dpr;
+        this.gameCanvas.width = size * dpr;
+        this.gameCanvas.height = size * dpr;
         
         // Scale context to match device pixel ratio
         this.ctx.scale(dpr, dpr);
         this.gameCtx.scale(dpr, dpr);
         
         // Adjust cell size based on grid size and canvas dimensions
-        const displayWidth = containerWidth;
-        const displayHeight = canvasHeight;
-        this.cellSize = Math.min(displayWidth, displayHeight) / this.gridSize;
+        this.cellSize = size / this.gridSize;
         
         // Apply CSS dimensions to match the canvas size
-        this.canvas.style.width = `${displayWidth}px`;
-        this.canvas.style.height = `${canvasHeight}px`;
-        this.gameCanvas.style.width = `${displayWidth}px`;
-        this.gameCanvas.style.height = `${canvasHeight}px`;
+        this.canvas.style.width = `${size}px`;
+        this.canvas.style.height = `${size}px`;
+        this.gameCanvas.style.width = `${size}px`;
+        this.gameCanvas.style.height = `${size}px`;
     }
 
     setupTouchHandling() {
-        // Enhanced touch handling for sliders
-        const sliders = document.querySelectorAll('input[type="range"]');
-        
-        sliders.forEach(slider => {
-            // Prevent propagation of touch events from sliders
-            slider.addEventListener('touchstart', e => {
-                e.stopPropagation();
-            }, { passive: false });
-            
-            slider.addEventListener('touchmove', e => {
-                e.stopPropagation();
-            }, { passive: false });
-        });
-        
-        // Prevent default touch behaviors on canvases
+        // Only prevent default on canvas interactions
         [this.canvas, this.gameCanvas].forEach(canvas => {
             canvas.addEventListener('touchstart', e => {
                 e.preventDefault();
-                e.stopPropagation();
             }, { passive: false });
             
             canvas.addEventListener('touchmove', e => {
                 e.preventDefault();
-                e.stopPropagation();
-            }, { passive: false });
-            
-            canvas.addEventListener('touchend', e => {
-                e.preventDefault();
-                e.stopPropagation();
             }, { passive: false });
         });
+        
+        // Fix for iOS Safari
+        if (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream) {
+            // Add specific handling for iOS sliders
+            document.querySelectorAll('input[type="range"]').forEach(slider => {
+                // iOS needs special handling for sliders
+                slider.addEventListener('touchstart', e => {
+                    e.stopPropagation();
+                }, { passive: true });
+            });
+        }
     }
 
     setupControls() {
@@ -178,17 +166,13 @@ class CaveVisualizer {
                 this.generateTimeout = setTimeout(() => this.generate(), 10);
             };
 
-            // Improved touch handling for all devices
-            const handleTouch = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                
-                const touch = e.touches[0];
+            // Direct value update for mouse/touch position
+            const updateValueFromPosition = (clientX) => {
                 const rect = input.getBoundingClientRect();
-                const ratio = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
+                const percentage = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
                 const min = parseInt(input.min);
                 const max = parseInt(input.max);
-                const value = Math.round(min + ratio * (max - min));
+                const value = Math.round(min + percentage * (max - min));
                 
                 // Update input value and trigger change
                 input.value = value;
@@ -204,19 +188,48 @@ class CaveVisualizer {
                 input.classList.add('active');
             });
             
-            // Touch-specific events with passive: false for better mobile performance
-            input.addEventListener('touchstart', handleTouch, { passive: false });
-            input.addEventListener('touchmove', handleTouch, { passive: false });
+            // Mouse events for better desktop handling
+            input.addEventListener('mousedown', (e) => {
+                // Update on initial click
+                updateValueFromPosition(e.clientX);
+                
+                // Setup mouse move and up handlers
+                const handleMouseMove = (moveEvent) => {
+                    updateValueFromPosition(moveEvent.clientX);
+                };
+                
+                const handleMouseUp = () => {
+                    document.removeEventListener('mousemove', handleMouseMove);
+                    document.removeEventListener('mouseup', handleMouseUp);
+                    input.classList.remove('active');
+                };
+                
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
+            });
             
-            // Remove active state when interaction ends
-            const endInteraction = () => {
-                input.classList.remove('active');
-            };
-            
-            input.addEventListener('touchend', endInteraction);
-            input.addEventListener('touchcancel', endInteraction);
-            input.addEventListener('mouseup', endInteraction);
-            input.addEventListener('mouseleave', endInteraction);
+            // Touch events with improved handling
+            input.addEventListener('touchstart', (e) => {
+                e.preventDefault(); // Prevent scrolling when touching slider
+                updateValueFromPosition(e.touches[0].clientX);
+                
+                // Setup touch move and end handlers
+                const handleTouchMove = (moveEvent) => {
+                    moveEvent.preventDefault();
+                    updateValueFromPosition(moveEvent.touches[0].clientX);
+                };
+                
+                const handleTouchEnd = () => {
+                    document.removeEventListener('touchmove', handleTouchMove);
+                    document.removeEventListener('touchend', handleTouchEnd);
+                    document.removeEventListener('touchcancel', handleTouchEnd);
+                    input.classList.remove('active');
+                };
+                
+                document.addEventListener('touchmove', handleTouchMove, { passive: false });
+                document.addEventListener('touchend', handleTouchEnd);
+                document.addEventListener('touchcancel', handleTouchEnd);
+            }, { passive: false });
         };
 
         setupRangeInput('gridSize');
@@ -367,35 +380,45 @@ class CaveVisualizer {
 
 // Initialize the visualizer when the page loads
 window.addEventListener('load', () => {
-    // Prevent default touch behavior on the entire document
-    document.addEventListener('touchmove', function(e) {
-        e.preventDefault();
-    }, { passive: false });
-    
-    document.addEventListener('touchstart', function(e) {
-        // Allow touch events only on sliders and the container for scrolling
-        if (!e.target.closest('input[type="range"]') && 
-            !e.target.closest('.container')) {
-            e.preventDefault();
-        }
-    }, { passive: false });
-    
-    // Prevent scrolling when touching the canvas
-    document.querySelectorAll('canvas').forEach(canvas => {
-        canvas.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
-        canvas.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
-        canvas.addEventListener('touchend', e => e.preventDefault(), { passive: false });
-    });
-    
-    // Handle iOS Safari specific issues
+    // Fix for iOS Safari specific issues
     if (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream) {
         document.addEventListener('gesturestart', function(e) {
-            e.preventDefault(); // Disable pinch zoom
+            // Only prevent zoom on canvas elements
+            if (e.target.tagName.toLowerCase() === 'canvas') {
+                e.preventDefault();
+            }
         }, { passive: false });
         
         // Fix for iOS momentum scrolling
         document.querySelector('.container').style.webkitOverflowScrolling = 'touch';
     }
+    
+    // Ensure sliders work properly on all devices
+    document.querySelectorAll('input[type="range"]').forEach(slider => {
+        // Fix for Firefox and some mobile browsers
+        slider.addEventListener('input', function() {
+            // Trigger a change event to ensure value updates
+            const event = new Event('change', { bubbles: true });
+            this.dispatchEvent(event);
+        });
+        
+        // Special handling for the threshold slider
+        if (slider.id === 'neighborThreshold') {
+            // Add extra handling for this specific slider
+            slider.addEventListener('touchstart', function(e) {
+                // Ensure this slider gets priority
+                e.stopPropagation();
+                slider.style.zIndex = '30';
+            }, { passive: true });
+            
+            slider.addEventListener('touchend', function() {
+                // Reset z-index after interaction
+                setTimeout(() => {
+                    slider.style.zIndex = '15';
+                }, 300);
+            });
+        }
+    });
     
     // Initialize the visualizer
     new CaveVisualizer();
