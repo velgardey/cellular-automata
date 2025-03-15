@@ -63,23 +63,23 @@ class CaveVisualizer {
 
     setupCanvas() {
         const containerWidth = this.canvas.parentElement.clientWidth;
-        const containerHeight = window.innerHeight;
-        const maxSize = Math.min(containerWidth - 32, 400);
-        const minSize = 200; // Minimum size for mobile
-        const size = Math.max(minSize, maxSize);
+        
+        // Set fixed height for canvas based on CSS
+        const canvasHeight = 250;
         
         // Set canvas size with device pixel ratio for sharp rendering
         const dpr = window.devicePixelRatio || 1;
-        this.canvas.width = size * dpr;
-        this.canvas.height = size * dpr;
-        this.gameCanvas.width = size * dpr;
-        this.gameCanvas.height = size * dpr;
+        this.canvas.width = containerWidth * dpr;
+        this.canvas.height = canvasHeight * dpr;
+        this.gameCanvas.width = containerWidth * dpr;
+        this.gameCanvas.height = canvasHeight * dpr;
         
         // Scale context to match device pixel ratio
         this.ctx.scale(dpr, dpr);
         this.gameCtx.scale(dpr, dpr);
         
-        this.cellSize = size / this.gridSize;
+        // Adjust cell size based on grid size and canvas dimensions
+        this.cellSize = Math.min(containerWidth, canvasHeight) / this.gridSize;
     }
 
     setupTouchHandling() {
@@ -145,6 +145,11 @@ class CaveVisualizer {
                 this.draw();
             }, 250); // Debounce resize events
         });
+        
+        // Initial setup for mobile devices
+        if (window.matchMedia('(max-width: 768px)').matches) {
+            this.setupCanvas();
+        }
     }
 
     generate() {
