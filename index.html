@@ -2,13 +2,15 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="description" content="Interactive Cave Generator - Create procedural cave systems with cellular automata">
     <meta name="theme-color" content="#1a1a1a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Cave Generator</title>
     <link rel="stylesheet" href="index.css">
 </head>
-<body>
+<body ontouchmove="event.preventDefault()">
     <div class="container hashnode-embed">
         <div class="preview-container">
             <div class="canvas-container" aria-label="Cave System Preview">
@@ -89,16 +91,35 @@
     </div>
     <script src="main.js"></script>
     <script>
+        // Prevent default touch behavior
+        document.addEventListener('touchmove', function(e) {
+            e.preventDefault();
+        }, { passive: false });
+        
         function toggleLegend() {
             const content = document.getElementById('legendContent');
             const icon = document.querySelector('.toggle-icon');
             const button = document.querySelector('.legend-toggle');
+            
+            // Check if content is currently visible
             const isExpanded = content.style.display !== 'none';
             
+            // Toggle visibility
             content.style.display = isExpanded ? 'none' : 'block';
+            
+            // Update icon and aria attributes
             icon.textContent = isExpanded ? '▼' : '▲';
             button.setAttribute('aria-expanded', !isExpanded);
         }
+        
+        // Initialize legend state on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Ensure legend content is visible by default
+            const content = document.getElementById('legendContent');
+            if (!content.style.display) {
+                content.style.display = 'block';
+            }
+        });
     </script>
 </body>
 </html>

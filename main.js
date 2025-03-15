@@ -59,13 +59,32 @@ class CaveVisualizer {
         this.setupCanvas();
         this.setupTouchHandling();
         this.generate();
+        
+        // Handle resize events properly
+        this.handleResize = this.handleResize.bind(this);
+        window.addEventListener('resize', this.handleResize);
+        window.addEventListener('orientationchange', this.handleResize);
+    }
+    
+    handleResize() {
+        // Clear any existing timeout
+        if (this.resizeTimeout) {
+            clearTimeout(this.resizeTimeout);
+        }
+        
+        // Set a timeout to prevent multiple resize events
+        this.resizeTimeout = setTimeout(() => {
+            this.setupCanvas();
+            this.draw();
+        }, 250);
     }
 
     setupCanvas() {
+        // Get the actual container width after CSS is applied
         const containerWidth = this.canvas.parentElement.clientWidth;
         
         // Set fixed height for canvas based on CSS
-        const canvasHeight = 250;
+        const canvasHeight = window.matchMedia('(max-width: 768px)').matches ? 200 : 250;
         
         // Set canvas size with device pixel ratio for sharp rendering
         const dpr = window.devicePixelRatio || 1;
@@ -79,18 +98,48 @@ class CaveVisualizer {
         this.gameCtx.scale(dpr, dpr);
         
         // Adjust cell size based on grid size and canvas dimensions
-        this.cellSize = Math.min(containerWidth, canvasHeight) / this.gridSize;
+        const displayWidth = containerWidth;
+        const displayHeight = canvasHeight;
+        this.cellSize = Math.min(displayWidth, displayHeight) / this.gridSize;
+        
+        // Apply CSS dimensions to match the canvas size
+        this.canvas.style.width = `${displayWidth}px`;
+        this.canvas.style.height = `${canvasHeight}px`;
+        this.gameCanvas.style.width = `${displayWidth}px`;
+        this.gameCanvas.style.height = `${canvasHeight}px`;
     }
 
     setupTouchHandling() {
-        // Prevent default touch behaviors
-        this.canvas.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
-        this.gameCanvas.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+        // Enhanced touch handling for sliders
+        const sliders = document.querySelectorAll('input[type="range"]');
         
-        // Add touch event listeners for both canvases
+        sliders.forEach(slider => {
+            // Prevent propagation of touch events from sliders
+            slider.addEventListener('touchstart', e => {
+                e.stopPropagation();
+            }, { passive: false });
+            
+            slider.addEventListener('touchmove', e => {
+                e.stopPropagation();
+            }, { passive: false });
+        });
+        
+        // Prevent default touch behaviors on canvases
         [this.canvas, this.gameCanvas].forEach(canvas => {
-            canvas.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
-            canvas.addEventListener('touchend', (e) => e.preventDefault(), { passive: false });
+            canvas.addEventListener('touchstart', e => {
+                e.preventDefault();
+                e.stopPropagation();
+            }, { passive: false });
+            
+            canvas.addEventListener('touchmove', e => {
+                e.preventDefault();
+                e.stopPropagation();
+            }, { passive: false });
+            
+            canvas.addEventListener('touchend', e => {
+                e.preventDefault();
+                e.stopPropagation();
+            }, { passive: false });
         });
     }
 
@@ -100,51 +149,80 @@ class CaveVisualizer {
         this.iterations = parseInt(document.getElementById('iterations').value);
         this.neighborThreshold = parseInt(document.getElementById('neighborThreshold').value);
 
-        // Setup event listeners with touch support
+        // Setup event listeners with enhanced touch support
         const setupRangeInput = (id, suffix = '') => {
             const input = document.getElementById(id);
             const valueDisplay = document.getElementById(id + 'Value');
             
             const updateValue = (value) => {
+                // Ensure value is within min/max bounds
+                const min = parseInt(input.min);
+                const max = parseInt(input.max);
+                value = Math.max(min, Math.min(max, parseInt(value)));
+                
+                // Update display and internal state
                 valueDisplay.textContent = value + suffix;
-                this[id.replace('Value', '')] = parseInt(value);
-                this.generate(); // Generate on every change
+                
+                // Map the id to the correct property name
+                const propertyMap = {
+                    'gridSize': 'gridSize',
+                    'wallDensity': 'wallDensity',
+                    'iterations': 'iterations',
+                    'neighborThreshold': 'neighborThreshold'
+                };
+                
+                this[propertyMap[id]] = parseInt(value);
+                
+                // Generate with a small debounce for performance on mobile
+                if (this.generateTimeout) clearTimeout(this.generateTimeout);
+                this.generateTimeout = setTimeout(() => this.generate(), 10);
             };
 
-            // Prevent text selection during touch
-            input.addEventListener('touchstart', (e) => {
+            // Improved touch handling for all devices
+            const handleTouch = (e) => {
+                e.preventDefault();
                 e.stopPropagation();
-                e.preventDefault();
-            }, { passive: false });
-
-            input.addEventListener('input', (e) => updateValue(e.target.value));
-            
-            // Improved touch handling for range inputs
-            input.addEventListener('touchmove', (e) => {
-                e.preventDefault();
+                
                 const touch = e.touches[0];
                 const rect = input.getBoundingClientRect();
-                const value = ((touch.clientX - rect.left) / rect.width) * 
-                    (parseInt(input.max) - parseInt(input.min)) + parseInt(input.min);
-                input.value = Math.round(value);
-                updateValue(input.value);
-            }, { passive: false });
+                const ratio = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
+                const min = parseInt(input.min);
+                const max = parseInt(input.max);
+                const value = Math.round(min + ratio * (max - min));
+                
+                // Update input value and trigger change
+                input.value = value;
+                updateValue(value);
+                
+                // Add visual feedback
+                input.classList.add('active');
+            };
+            
+            // Standard input event for all devices
+            input.addEventListener('input', (e) => {
+                updateValue(e.target.value);
+                input.classList.add('active');
+            });
+            
+            // Touch-specific events with passive: false for better mobile performance
+            input.addEventListener('touchstart', handleTouch, { passive: false });
+            input.addEventListener('touchmove', handleTouch, { passive: false });
+            
+            // Remove active state when interaction ends
+            const endInteraction = () => {
+                input.classList.remove('active');
+            };
+            
+            input.addEventListener('touchend', endInteraction);
+            input.addEventListener('touchcancel', endInteraction);
+            input.addEventListener('mouseup', endInteraction);
+            input.addEventListener('mouseleave', endInteraction);
         };
 
         setupRangeInput('gridSize');
         setupRangeInput('wallDensity', '%');
         setupRangeInput('iterations');
         setupRangeInput('neighborThreshold');
-
-        // Handle window resize with debounce
-        let resizeTimeout;
-        window.addEventListener('resize', () => {
-            clearTimeout(resizeTimeout);
-            resizeTimeout = setTimeout(() => {
-                this.setupCanvas();
-                this.draw();
-            }, 250); // Debounce resize events
-        });
         
         // Initial setup for mobile devices
         if (window.matchMedia('(max-width: 768px)').matches) {
@@ -289,5 +367,36 @@ class CaveVisualizer {
 
 // Initialize the visualizer when the page loads
 window.addEventListener('load', () => {
+    // Prevent default touch behavior on the entire document
+    document.addEventListener('touchmove', function(e) {
+        e.preventDefault();
+    }, { passive: false });
+    
+    document.addEventListener('touchstart', function(e) {
+        // Allow touch events only on sliders and the container for scrolling
+        if (!e.target.closest('input[type="range"]') && 
+            !e.target.closest('.container')) {
+            e.preventDefault();
+        }
+    }, { passive: false });
+    
+    // Prevent scrolling when touching the canvas
+    document.querySelectorAll('canvas').forEach(canvas => {
+        canvas.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
+        canvas.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+        canvas.addEventListener('touchend', e => e.preventDefault(), { passive: false });
+    });
+    
+    // Handle iOS Safari specific issues
+    if (/iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream) {
+        document.addEventListener('gesturestart', function(e) {
+            e.preventDefault(); // Disable pinch zoom
+        }, { passive: false });
+        
+        // Fix for iOS momentum scrolling
+        document.querySelector('.container').style.webkitOverflowScrolling = 'touch';
+    }
+    
+    // Initialize the visualizer
     new CaveVisualizer();
 });
