@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="index.css">
 </head>
 <body>
-    <div class="container hashnode-embed">
+    <div class="container hashnode-embed" id="scrollContainer">
         <div class="preview-container">
             <div class="canvas-container" aria-label="Cave System Preview">
                 <canvas id="caCanvas" role="img" aria-label="Generated cave pattern"></canvas>
@@ -113,6 +113,14 @@
             const content = document.getElementById('legendContent');
             if (!content.style.display) {
                 content.style.display = 'block';
+            }
+            
+            // Ensure scrolling works on touch devices
+            const scrollContainer = document.getElementById('scrollContainer');
+            if (scrollContainer) {
+                scrollContainer.addEventListener('touchstart', function(e) {
+                    // Allow default touch behavior for scrolling
+                }, { passive: true });
             }
         });
     </script>

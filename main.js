@@ -108,15 +108,41 @@ class CaveVisualizer {
     }
 
     setupTouchHandling() {
-        // Only prevent default on canvas interactions
+        // Allow scrolling when touching canvases, but prevent unwanted interactions
         [this.canvas, this.gameCanvas].forEach(canvas => {
+            // Only prevent default for actual drawing/interaction attempts
+            // but allow scrolling gestures to pass through
             canvas.addEventListener('touchstart', e => {
-                e.preventDefault();
-            }, { passive: false });
+                // Check if it's a single touch (likely a scroll attempt)
+                if (e.touches.length === 1) {
+                    // Store initial touch position to determine if it's a scroll
+                    this.touchStartY = e.touches[0].clientY;
+                } else {
+                    // Multi-touch gestures should be prevented
+                    e.preventDefault();
+                }
+            }, { passive: true }); // Use passive listener to improve scrolling performance
             
             canvas.addEventListener('touchmove', e => {
-                e.preventDefault();
+                if (e.touches.length === 1 && this.touchStartY !== undefined) {
+                    // Calculate vertical movement
+                    const touchY = e.touches[0].clientY;
+                    const deltaY = Math.abs(touchY - this.touchStartY);
+                    
+                    // If vertical movement is significant, it's likely a scroll attempt
+                    // Only prevent default for horizontal or minimal movement (likely drawing)
+                    if (deltaY < 10) {
+                        e.preventDefault();
+                    }
+                } else {
+                    e.preventDefault();
+                }
             }, { passive: false });
+            
+            canvas.addEventListener('touchend', () => {
+                // Clean up the stored touch position
+                delete this.touchStartY;
+            });
         });
         
         // Fix for iOS Safari
@@ -391,6 +417,11 @@ window.addEventListener('load', () => {
         
         // Fix for iOS momentum scrolling
         document.querySelector('.container').style.webkitOverflowScrolling = 'touch';
+        
+        // Additional iOS-specific fixes for scrolling
+        document.addEventListener('touchmove', function(e) {
+            // Allow default scrolling behavior
+        }, { passive: true });
     }
     
     // Ensure sliders work properly on all devices
@@ -419,6 +450,29 @@ window.addEventListener('load', () => {
             });
         }
     });
+    
+    // Add a global touch handler to help with scrolling
+    let touchStartY = 0;
+    let scrolling = false;
+    
+    document.addEventListener('touchstart', function(e) {
+        // Store the initial touch position
+        touchStartY = e.touches[0].clientY;
+        scrolling = false;
+    }, { passive: true });
+    
+    document.addEventListener('touchmove', function(e) {
+        // Calculate vertical movement
+        const touchY = e.touches[0].clientY;
+        const deltaY = touchY - touchStartY;
+        
+        // If significant vertical movement, mark as scrolling
+        if (Math.abs(deltaY) > 10) {
+            scrolling = true;
+        }
+        
+        // Don't prevent default to allow scrolling
+    }, { passive: true });
     
     // Initialize the visualizer
     new CaveVisualizer();

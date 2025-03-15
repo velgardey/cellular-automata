@@ -74,6 +74,7 @@ body {
     margin-bottom: var(--spacing-md);
     flex-wrap: wrap;
     justify-content: center; /* Center the canvas containers */
+    touch-action: pan-y; /* Allow vertical scrolling on this container */
 }
 
 .canvas-container, .game-preview {
@@ -91,6 +92,7 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    touch-action: pan-y; /* Allow vertical scrolling on canvas containers */
 }
 
 .canvas-container {
@@ -131,6 +133,7 @@ canvas {
     display: block;
     max-height: 100%;
     object-fit: contain;
+    touch-action: pan-y; /* Allow vertical scrolling on canvas */
 }
 
 .controls {
