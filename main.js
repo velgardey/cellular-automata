@@ -84,7 +84,7 @@ class CaveVisualizer {
         const containerWidth = this.canvas.parentElement.clientWidth;
         
         // Calculate size for 1:1 aspect ratio
-        const size = Math.min(containerWidth, 350); // Limit max size
+        const size = Math.min(containerWidth, 300); // Match max-width from CSS
         
         // Set canvas size with device pixel ratio for sharp rendering
         const dpr = window.devicePixelRatio || 1;
@@ -105,6 +105,10 @@ class CaveVisualizer {
         this.canvas.style.height = `${size}px`;
         this.gameCanvas.style.width = `${size}px`;
         this.gameCanvas.style.height = `${size}px`;
+        
+        // Store the logical canvas size for use in drawing
+        this.canvasLogicalWidth = size;
+        this.canvasLogicalHeight = size;
     }
 
     setupTouchHandling() {
@@ -317,29 +321,57 @@ class CaveVisualizer {
 
     drawIsometricGameView() {
         const gameCtx = this.gameCtx;
-        const width = this.gameCanvas.width;
-        const height = this.gameCanvas.height;
+        const width = this.canvasLogicalWidth; // Use logical width instead of canvas.width
+        const height = this.canvasLogicalHeight; // Use logical height instead of canvas.height
+        
+        // Debug option - set to true to see centering guides
+        const showDebugGuides = false;
+        
+        // Clear the canvas with background color
+        gameCtx.fillStyle = '#1a1a1a';
+        gameCtx.fillRect(0, 0, width, height);
         
         // Calculate the optimal tile size based on grid size and canvas dimensions
-        // Use a smaller divisor to make the grid fit better within the canvas
-        const maxGridDimension = Math.max(this.gridSize, 20); // Ensure minimum divisor
-        const divisor = maxGridDimension * 0.85; // Adjust divisor for better fit
+        // We want to ensure the entire grid fits within the canvas with proper margins
+        const maxGridDimension = Math.max(this.gridSize, 20); // Ensure minimum grid dimension
+        
+        // Calculate the divisor to fit the grid properly
+        // For larger grids, we need a smaller tile size to fit everything
+        // The 0.85 factor provides a small margin around the grid
+        const divisor = maxGridDimension * 0.85;
+        
+        // Calculate tile dimensions - maintain 2:1 ratio for isometric tiles
         const tileWidth = Math.min(width, height) / divisor;
-        const tileHeight = tileWidth * 0.5; // 2:1 ratio for isometric look
+        const tileHeight = tileWidth * 0.5;
         const wallHeight = tileHeight * 1.0;
         
         // Calculate the total width and height of the isometric grid in pixels
-        // For an isometric grid, we need to account for the diamond shape
+        // For an isometric grid, the total width and height depend on both dimensions
         const isoGridWidth = this.gridSize * tileWidth;
         const isoGridHeight = this.gridSize * tileHeight;
         
         // Calculate offsets to center the grid in the canvas
-        // For perfect centering in isometric view, we need to account for the diamond shape
+        // Horizontal centering is straightforward - just use half the canvas width
         const offsetX = width / 2;
         
-        // Adjust vertical centering based on grid size
-        // The factor 0.25 is empirically determined for best visual centering
-        const verticalAdjustment = isoGridHeight * 0.25;
+        // Vertical centering requires an adjustment factor due to the diamond shape
+        // This factor is empirically determined for best visual centering
+        // The adjustment factor is based on the grid size and aspect ratio
+        let verticalAdjustFactor;
+        
+        // Adjust the vertical centering factor based on grid size
+        // These values were determined through testing to achieve optimal centering
+        if (this.gridSize > 60) {
+            verticalAdjustFactor = 0.32; // Larger adjustment for very large grids
+        } else if (this.gridSize > 40) {
+            verticalAdjustFactor = 0.28; // Medium adjustment for large grids
+        } else if (this.gridSize > 20) {
+            verticalAdjustFactor = 0.24; // Standard adjustment for medium grids
+        } else {
+            verticalAdjustFactor = 0.20; // Smaller adjustment for small grids
+        }
+        
+        const verticalAdjustment = isoGridHeight * verticalAdjustFactor;
         const offsetY = height / 2 - verticalAdjustment;
         
         // Colors with improved palette
@@ -381,9 +413,19 @@ class CaveVisualizer {
         };
         
         // Draw a border around the isometric grid area for debugging centering
-        if (false) { // Set to true to debug centering
-            gameCtx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+        if (showDebugGuides) {
+            // Draw canvas center
+            gameCtx.strokeStyle = 'rgba(0, 255, 0, 0.7)';
             gameCtx.lineWidth = 1;
+            gameCtx.beginPath();
+            gameCtx.moveTo(width/2 - 10, height/2);
+            gameCtx.lineTo(width/2 + 10, height/2);
+            gameCtx.moveTo(width/2, height/2 - 10);
+            gameCtx.lineTo(width/2, height/2 + 10);
+            gameCtx.stroke();
+            
+            // Draw isometric grid outline
+            gameCtx.strokeStyle = 'rgba(255, 0, 0, 0.7)';
             
             // Calculate the corners of the isometric grid
             const topLeft = toIso(0, 0);
@@ -399,13 +441,16 @@ class CaveVisualizer {
             gameCtx.closePath();
             gameCtx.stroke();
             
-            // Draw canvas center marker
-            gameCtx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
+            // Draw grid center
+            const gridCenterX = (topLeft.x + bottomRight.x) / 2;
+            const gridCenterY = (topLeft.y + bottomRight.y) / 2;
+            
+            gameCtx.strokeStyle = 'rgba(255, 255, 0, 0.7)';
             gameCtx.beginPath();
-            gameCtx.moveTo(width/2 - 10, height/2);
-            gameCtx.lineTo(width/2 + 10, height/2);
-            gameCtx.moveTo(width/2, height/2 - 10);
-            gameCtx.lineTo(width/2, height/2 + 10);
+            gameCtx.moveTo(gridCenterX - 10, gridCenterY);
+            gameCtx.lineTo(gridCenterX + 10, gridCenterY);
+            gameCtx.moveTo(gridCenterX, gridCenterY - 10);
+            gameCtx.lineTo(gridCenterX, gridCenterY + 10);
             gameCtx.stroke();
         }
         
@@ -426,7 +471,7 @@ class CaveVisualizer {
                 gameCtx.closePath();
                 
                 // Determine if this is a water tile (based on neighbor count)
-                const neighbors = this.ca.countNeighbors(x, y);
+                    const neighbors = this.ca.countNeighbors(x, y);
                 const isWater = neighbors >= 6;
                 
                 if (isWater) {

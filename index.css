@@ -79,7 +79,7 @@ body {
 
 .canvas-container, .game-preview {
     flex: 1;
-    min-width: 250px;
+    min-width: 200px;
     max-width: 350px; /* Limit width for better layout */
     background-color: var(--bg-secondary);
     border-radius: var(--border-radius);
