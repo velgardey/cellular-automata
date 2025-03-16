@@ -177,15 +177,18 @@ class CaveVisualizer {
                 // Update display and internal state
                 valueDisplay.textContent = value + suffix;
                 
-                // Map the id to the correct property name
-                const propertyMap = {
-                    'gridSize': 'gridSize',
-                    'wallDensity': 'wallDensity',
-                    'iterations': 'iterations',
-                    'neighborThreshold': 'neighborThreshold'
-                };
-                
-                this[propertyMap[id]] = parseInt(value);
+                // Directly update the corresponding property
+                if (id === 'gridSize') {
+                    this.gridSize = parseInt(value);
+                    // When grid size changes, we need to recalculate cell size
+                    this.setupCanvas();
+                } else if (id === 'wallDensity') {
+                    this.wallDensity = parseInt(value);
+                } else if (id === 'iterations') {
+                    this.iterations = parseInt(value);
+                } else if (id === 'neighborThreshold') {
+                    this.neighborThreshold = parseInt(value);
+                }
                 
                 // Generate with a small debounce for performance on mobile
                 if (this.generateTimeout) clearTimeout(this.generateTimeout);
@@ -262,10 +265,10 @@ class CaveVisualizer {
         setupRangeInput('wallDensity', '%');
         setupRangeInput('iterations');
         setupRangeInput('neighborThreshold');
-        
+
         // Initial setup for mobile devices
         if (window.matchMedia('(max-width: 768px)').matches) {
-            this.setupCanvas();
+                this.setupCanvas();
         }
     }
 
@@ -308,99 +311,354 @@ class CaveVisualizer {
             }
         }
 
-        // Draw game-level visualization with perspective
-        const perspective = 0.7;
-        const wallHeight = this.cellSize * 2;
-        const floorColor = '#2a2a2a';
-        const wallColor = '#1a1a1a';
-        const highlightColor = 'rgba(255, 255, 255, 0.1)';
-        const shadowColor = 'rgba(0, 0, 0, 0.3)';
+        // Draw game-level visualization with isometric perspective
+        this.drawIsometricGameView();
+    }
 
-        // Draw floor
-        this.gameCtx.fillStyle = floorColor;
-        this.gameCtx.fillRect(0, 0, this.gameCanvas.width, this.gameCanvas.height);
-
-        // Draw walls and floor tiles
-        for (let y = 0; y < this.gridSize; y++) {
+    drawIsometricGameView() {
+        const gameCtx = this.gameCtx;
+        const width = this.gameCanvas.width;
+        const height = this.gameCanvas.height;
+        
+        // Calculate the optimal tile size based on grid size and canvas dimensions
+        // Use a smaller divisor to make the grid fit better within the canvas
+        const maxGridDimension = Math.max(this.gridSize, 20); // Ensure minimum divisor
+        const divisor = maxGridDimension * 0.85; // Adjust divisor for better fit
+        const tileWidth = Math.min(width, height) / divisor;
+        const tileHeight = tileWidth * 0.5; // 2:1 ratio for isometric look
+        const wallHeight = tileHeight * 1.0;
+        
+        // Calculate the total width and height of the isometric grid in pixels
+        // For an isometric grid, we need to account for the diamond shape
+        const isoGridWidth = this.gridSize * tileWidth;
+        const isoGridHeight = this.gridSize * tileHeight;
+        
+        // Calculate offsets to center the grid in the canvas
+        // For perfect centering in isometric view, we need to account for the diamond shape
+        const offsetX = width / 2;
+        
+        // Adjust vertical centering based on grid size
+        // The factor 0.25 is empirically determined for best visual centering
+        const verticalAdjustment = isoGridHeight * 0.25;
+        const offsetY = height / 2 - verticalAdjustment;
+        
+        // Colors with improved palette
+        const floorColor = '#2d2d2d';
+        const floorHighlight = '#3a3a3a';
+        const waterColor = '#1976D2';
+        const waterHighlight = '#2196F3';
+        const waterDeep = '#0D47A1';
+        
+        // Draw background/sky with improved gradient
+        const skyGradient = gameCtx.createLinearGradient(0, 0, 0, height);
+        skyGradient.addColorStop(0, '#0a0a0a');
+        skyGradient.addColorStop(0.5, '#1a1a1a');
+        skyGradient.addColorStop(1, '#2d2d2d');
+        gameCtx.fillStyle = skyGradient;
+        gameCtx.fillRect(0, 0, width, height);
+        
+        // Add some stars/distant lights to the background
+        gameCtx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        const starCount = 50;
+        for (let i = 0; i < starCount; i++) {
+            const size = Math.random() * 1.5;
+            const x = Math.random() * width;
+            const y = Math.random() * height * 0.5;
+            const opacity = Math.random() * 0.5 + 0.1;
+            gameCtx.globalAlpha = opacity;
+            gameCtx.beginPath();
+            gameCtx.arc(x, y, size, 0, Math.PI * 2);
+            gameCtx.fill();
+        }
+        gameCtx.globalAlpha = 1.0;
+        
+        // Function to convert grid coordinates to isometric screen coordinates
+        const toIso = (x, y) => {
+            return {
+                x: offsetX + (x - y) * tileWidth / 2,
+                y: offsetY + (x + y) * tileHeight / 2
+            };
+        };
+        
+        // Draw a border around the isometric grid area for debugging centering
+        if (false) { // Set to true to debug centering
+            gameCtx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+            gameCtx.lineWidth = 1;
+            
+            // Calculate the corners of the isometric grid
+            const topLeft = toIso(0, 0);
+            const topRight = toIso(this.gridSize-1, 0);
+            const bottomLeft = toIso(0, this.gridSize-1);
+            const bottomRight = toIso(this.gridSize-1, this.gridSize-1);
+            
+            gameCtx.beginPath();
+            gameCtx.moveTo(topLeft.x, topLeft.y);
+            gameCtx.lineTo(topRight.x, topRight.y);
+            gameCtx.lineTo(bottomRight.x, bottomRight.y);
+            gameCtx.lineTo(bottomLeft.x, bottomLeft.y);
+            gameCtx.closePath();
+            gameCtx.stroke();
+            
+            // Draw canvas center marker
+            gameCtx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
+            gameCtx.beginPath();
+            gameCtx.moveTo(width/2 - 10, height/2);
+            gameCtx.lineTo(width/2 + 10, height/2);
+            gameCtx.moveTo(width/2, height/2 - 10);
+            gameCtx.lineTo(width/2, height/2 + 10);
+            gameCtx.stroke();
+        }
+        
+        // Draw floor tiles first (back to front for proper layering)
+        for (let y = this.gridSize - 1; y >= 0; y--) {
             for (let x = 0; x < this.gridSize; x++) {
-                const cell = this.ca.grid[y][x];
-                const screenX = x * this.cellSize;
-                const screenY = y * this.cellSize;
-
-                if (cell === 1) {
-                    // Calculate wall color based on neighbor count
-                    const neighbors = this.ca.countNeighbors(x, y);
-                    const wallIntensity = Math.max(0, Math.min(1, neighbors / 8));
-                    const wallColor = `rgb(${26 + wallIntensity * 20}, ${26 + wallIntensity * 20}, ${26 + wallIntensity * 20})`;
-
-                    // Draw wall
-                    this.gameCtx.fillStyle = wallColor;
-                    this.gameCtx.fillRect(
-                        screenX,
-                        screenY - wallHeight * perspective,
-                        this.cellSize,
-                        wallHeight
-                    );
-
-                    // Add wall highlights
-                    this.gameCtx.fillStyle = highlightColor;
-                    this.gameCtx.fillRect(
-                        screenX,
-                        screenY - wallHeight * perspective,
-                        this.cellSize,
-                        2
-                    );
-                    this.gameCtx.fillRect(
-                        screenX,
-                        screenY - wallHeight * perspective,
-                        2,
-                        wallHeight
-                    );
-
-                    // Add wall shadows
-                    this.gameCtx.fillStyle = shadowColor;
-                    this.gameCtx.fillRect(
-                        screenX + this.cellSize - 2,
-                        screenY - wallHeight * perspective,
-                        2,
-                        wallHeight
-                    );
-                    this.gameCtx.fillRect(
-                        screenX,
-                        screenY - wallHeight * perspective + wallHeight - 2,
-                        this.cellSize,
-                        2
-                    );
-                }
-
-                // Draw floor tile with intensity based on neighbor count
+                const iso = toIso(x, y);
+                
+                // Skip walls for now, we'll draw them later
+                if (this.ca.grid[y][x] === 1) continue;
+                
+                // Draw floor tile (diamond shape)
+                gameCtx.beginPath();
+                gameCtx.moveTo(iso.x, iso.y);
+                gameCtx.lineTo(iso.x + tileWidth/2, iso.y + tileHeight/2);
+                gameCtx.lineTo(iso.x, iso.y + tileHeight);
+                gameCtx.lineTo(iso.x - tileWidth/2, iso.y + tileHeight/2);
+                gameCtx.closePath();
+                
+                // Determine if this is a water tile (based on neighbor count)
                 const neighbors = this.ca.countNeighbors(x, y);
-                const floorIntensity = Math.max(0, Math.min(1, neighbors / 8));
-                this.gameCtx.fillStyle = cell === 1 ? 
-                    shadowColor : 
-                    `rgba(255, 255, 255, ${0.05 + floorIntensity * 0.05})`;
-                this.gameCtx.fillRect(
-                    screenX,
-                    screenY,
-                    this.cellSize,
-                    this.cellSize
-                );
+                const isWater = neighbors >= 6;
+                
+                if (isWater) {
+                    // Water tile with animated effect
+                    const time = Date.now() / 1000;
+                    const waveOffset = Math.sin(time + x * 0.3 + y * 0.3) * 0.1;
+                    
+                    // Create water gradient
+                    const waterGradient = gameCtx.createLinearGradient(
+                        iso.x - tileWidth/2, iso.y + tileHeight/2,
+                        iso.x + tileWidth/2, iso.y + tileHeight/2
+                    );
+                    waterGradient.addColorStop(0, waterDeep);
+                    waterGradient.addColorStop(0.5 + waveOffset, waterColor);
+                    waterGradient.addColorStop(1, waterDeep);
+                    
+                    gameCtx.fillStyle = waterGradient;
+                    gameCtx.fill();
+                    
+                    // Add water highlight/reflection
+                    gameCtx.fillStyle = waterHighlight;
+                    gameCtx.globalAlpha = 0.2 + waveOffset * 0.1;
+                    gameCtx.beginPath();
+                    gameCtx.moveTo(iso.x, iso.y + tileHeight * 0.3);
+                    gameCtx.lineTo(iso.x + tileWidth/4, iso.y + tileHeight/2);
+                    gameCtx.lineTo(iso.x, iso.y + tileHeight * 0.7);
+                    gameCtx.lineTo(iso.x - tileWidth/4, iso.y + tileHeight/2);
+                    gameCtx.closePath();
+                    gameCtx.fill();
+                    gameCtx.globalAlpha = 1.0;
+                } else {
+                    // Regular floor tile with subtle pattern based on position
+                    const brightness = 0.8 + ((x + y) % 2) * 0.2;
+                    gameCtx.fillStyle = `rgb(${Math.floor(45 * brightness)}, ${Math.floor(45 * brightness)}, ${Math.floor(45 * brightness)})`;
+                    gameCtx.fill();
+                    
+                    // Add subtle grid pattern
+                    gameCtx.strokeStyle = floorHighlight;
+                    gameCtx.lineWidth = 0.5;
+                    gameCtx.stroke();
+                }
             }
         }
-
-        // Add ambient lighting effect
-        const gradient = this.gameCtx.createRadialGradient(
-            this.gameCanvas.width / 2,
-            this.gameCanvas.height / 2,
-            0,
-            this.gameCanvas.width / 2,
-            this.gameCanvas.height / 2,
-            this.gameCanvas.width / 2
+        
+        // Now draw walls (back to front for proper layering)
+        for (let y = this.gridSize - 1; y >= 0; y--) {
+            for (let x = 0; x < this.gridSize; x++) {
+                if (this.ca.grid[y][x] !== 1) continue;
+                
+                const iso = toIso(x, y);
+                
+                // Determine wall color based on neighbor count for variety
+                const neighbors = this.ca.countNeighbors(x, y);
+                const colorIntensity = Math.min(1, neighbors / 8);
+                
+                // Adjust wall colors based on neighbor count
+                const r = Math.floor(76 + colorIntensity * 20);
+                const g = Math.floor(175 + colorIntensity * 20);
+                const b = Math.floor(80 + colorIntensity * 20);
+                const wallColor = `rgb(${r}, ${g}, ${b})`;
+                const wallTopColorCustom = `rgb(${r-20}, ${g-20}, ${b-20})`;
+                const wallSideColorCustom = `rgb(${r-40}, ${g-40}, ${b-40})`;
+                
+                // Check if adjacent cells are walls to determine which sides to draw
+                const hasWallAbove = y > 0 && this.ca.grid[y-1][x] === 1;
+                const hasWallRight = x < this.gridSize-1 && this.ca.grid[y][x+1] === 1;
+                const hasWallBelow = y < this.gridSize-1 && this.ca.grid[y+1][x] === 1;
+                const hasWallLeft = x > 0 && this.ca.grid[y][x-1] === 1;
+                
+                // Draw wall top (slightly smaller than floor tile)
+                gameCtx.beginPath();
+                gameCtx.moveTo(iso.x, iso.y - wallHeight);
+                gameCtx.lineTo(iso.x + tileWidth/2, iso.y + tileHeight/2 - wallHeight);
+                gameCtx.lineTo(iso.x, iso.y + tileHeight - wallHeight);
+                gameCtx.lineTo(iso.x - tileWidth/2, iso.y + tileHeight/2 - wallHeight);
+                gameCtx.closePath();
+                
+                // Create gradient for top of wall
+                const topGradient = gameCtx.createLinearGradient(
+                    iso.x, iso.y - wallHeight,
+                    iso.x, iso.y + tileHeight - wallHeight
+                );
+                topGradient.addColorStop(0, wallTopColorCustom);
+                topGradient.addColorStop(1, `rgb(${r-30}, ${g-30}, ${b-30})`);
+                
+                gameCtx.fillStyle = topGradient;
+                gameCtx.fill();
+                
+                // Add subtle grid to top
+                gameCtx.strokeStyle = `rgba(255, 255, 255, 0.1)`;
+                gameCtx.lineWidth = 0.5;
+                gameCtx.stroke();
+                
+                // Draw right side of wall if visible
+                if (!hasWallRight) {
+                    gameCtx.beginPath();
+                    gameCtx.moveTo(iso.x + tileWidth/2, iso.y + tileHeight/2 - wallHeight);
+                    gameCtx.lineTo(iso.x, iso.y + tileHeight - wallHeight);
+                    gameCtx.lineTo(iso.x, iso.y + tileHeight);
+                    gameCtx.lineTo(iso.x + tileWidth/2, iso.y + tileHeight/2);
+                    gameCtx.closePath();
+                    
+                    // Create gradient for side of wall
+                    const rightGradient = gameCtx.createLinearGradient(
+                        iso.x + tileWidth/2, iso.y + tileHeight/2 - wallHeight,
+                        iso.x, iso.y + tileHeight
+                    );
+                    rightGradient.addColorStop(0, wallSideColorCustom);
+                    rightGradient.addColorStop(1, `rgb(${r-50}, ${g-50}, ${b-50})`);
+                    
+                    gameCtx.fillStyle = rightGradient;
+                    gameCtx.fill();
+                    
+                    // Add subtle edge highlight
+                    gameCtx.strokeStyle = `rgba(255, 255, 255, 0.05)`;
+                    gameCtx.lineWidth = 0.5;
+                    gameCtx.stroke();
+                }
+                
+                // Draw left side of wall if visible
+                if (!hasWallLeft) {
+                    gameCtx.beginPath();
+                    gameCtx.moveTo(iso.x, iso.y + tileHeight - wallHeight);
+                    gameCtx.lineTo(iso.x - tileWidth/2, iso.y + tileHeight/2 - wallHeight);
+                    gameCtx.lineTo(iso.x - tileWidth/2, iso.y + tileHeight/2);
+                    gameCtx.lineTo(iso.x, iso.y + tileHeight);
+                    gameCtx.closePath();
+                    
+                    // Create gradient for side of wall
+                    const leftGradient = gameCtx.createLinearGradient(
+                        iso.x - tileWidth/2, iso.y + tileHeight/2 - wallHeight,
+                        iso.x, iso.y + tileHeight
+                    );
+                    leftGradient.addColorStop(0, wallColor);
+                    leftGradient.addColorStop(1, wallSideColorCustom);
+                    
+                    gameCtx.fillStyle = leftGradient;
+                    gameCtx.fill();
+                    
+                    // Add subtle edge highlight
+                    gameCtx.strokeStyle = `rgba(255, 255, 255, 0.1)`;
+                    gameCtx.lineWidth = 0.5;
+                    gameCtx.stroke();
+                }
+            }
+        }
+        
+        // Add a character/player marker at a random walkable position
+        this.addPlayerMarker(gameCtx, toIso);
+        
+        // Add ambient lighting/fog effect
+        const gradient = gameCtx.createRadialGradient(
+            width / 2, height / 2, 0,
+            width / 2, height / 2, width / 1.2
         );
-        gradient.addColorStop(0, 'rgba(255, 255, 255, 0.1)');
-        gradient.addColorStop(1, 'rgba(0, 0, 0, 0.3)');
-        this.gameCtx.fillStyle = gradient;
-        this.gameCtx.fillRect(0, 0, this.gameCanvas.width, this.gameCanvas.height);
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 0)');
+        gradient.addColorStop(0.7, 'rgba(0, 0, 0, 0.1)');
+        gradient.addColorStop(1, 'rgba(0, 0, 0, 0.5)');
+        gameCtx.fillStyle = gradient;
+        gameCtx.fillRect(0, 0, width, height);
+        
+        // Add some particles/dust for atmosphere
+        gameCtx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        for (let i = 0; i < 30; i++) {
+            const size = Math.random() * 2 + 0.5;
+            const x = Math.random() * width;
+            const y = Math.random() * height * 0.7;
+            const opacity = Math.random() * 0.3 + 0.1;
+            gameCtx.globalAlpha = opacity;
+            gameCtx.beginPath();
+            gameCtx.arc(x, y, size, 0, Math.PI * 2);
+            gameCtx.fill();
+        }
+        gameCtx.globalAlpha = 1.0;
+    }
+    
+    // Add a player character to the game view
+    addPlayerMarker(gameCtx, toIso) {
+        // Find a walkable position for the player (not a wall)
+        let playerX, playerY;
+        let attempts = 0;
+        const maxAttempts = 100;
+        
+        do {
+            playerX = Math.floor(Math.random() * this.gridSize);
+            playerY = Math.floor(Math.random() * this.gridSize);
+            attempts++;
+        } while (this.ca.grid[playerY][playerX] === 1 && attempts < maxAttempts);
+        
+        // If we couldn't find a walkable position, just return
+        if (attempts >= maxAttempts) return;
+        
+        // Convert to isometric coordinates
+        const iso = toIso(playerX, playerY);
+        
+        // Draw player shadow
+        gameCtx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        gameCtx.beginPath();
+        gameCtx.ellipse(iso.x, iso.y + 5, 8, 4, 0, 0, Math.PI * 2);
+        gameCtx.fill();
+        
+        // Draw player body
+        const playerGradient = gameCtx.createLinearGradient(
+            iso.x - 5, iso.y - 15,
+            iso.x + 5, iso.y
+        );
+        playerGradient.addColorStop(0, '#FF5722');
+        playerGradient.addColorStop(1, '#E64A19');
+        
+        gameCtx.fillStyle = playerGradient;
+        gameCtx.beginPath();
+        gameCtx.arc(iso.x, iso.y - 8, 5, 0, Math.PI * 2);
+        gameCtx.fill();
+        
+        // Draw player head
+        gameCtx.fillStyle = '#FFA726';
+        gameCtx.beginPath();
+        gameCtx.arc(iso.x, iso.y - 15, 3, 0, Math.PI * 2);
+        gameCtx.fill();
+        
+        // Add a subtle glow around the player
+        const glowGradient = gameCtx.createRadialGradient(
+            iso.x, iso.y - 8, 0,
+            iso.x, iso.y - 8, 15
+        );
+        glowGradient.addColorStop(0, 'rgba(255, 160, 0, 0.3)');
+        glowGradient.addColorStop(1, 'rgba(255, 160, 0, 0)');
+        
+        gameCtx.fillStyle = glowGradient;
+        gameCtx.beginPath();
+        gameCtx.arc(iso.x, iso.y - 8, 15, 0, Math.PI * 2);
+        gameCtx.fill();
     }
 }
 
